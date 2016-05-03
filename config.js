@@ -5,6 +5,6 @@ module.exports = {
     environments.CLIENT,
     environments.SERVER,
     environments.DEVELOPMENT,
-    environments.PRODUCTION
+    environments.PRODUCTION 
   ]
 };

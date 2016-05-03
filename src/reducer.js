@@ -21,7 +21,6 @@ const PENDING_REQUESTS = new Map();
 
 export const RECEIVE_ENTITY = 'entities/RECEIVE_ENTITY';
 export const REQUEST_ENTITY = 'entities/REQUEST_ENTITY';
-export const ENTITIES_REDUCER = 'entities';
 
 export default function reducer(state = {}, action = {}) {
   switch (action.type) {
@@ -96,10 +95,6 @@ function entityCollectionsReducer(entityCollectionsState = {}, action, entityTyp
   }
 }
 
-export function getEntitiesState(state) {
-  return state[ENTITIES_REDUCER];
-}
-
 export function createItem(type, createPromise){
   return (dispatch, getState) => {
     dispatch(createRequestAction(type, null, false, CREATE_OPERATION));
@@ -110,6 +105,18 @@ export function createItem(type, createPromise){
   }
 }
 
+export function createLocalItem(type, data) {
+  return (dispatch, getState) => {
+    dispatch(createReceiveAction(type, null, false, {
+      entities: {
+        [type] : [data]
+      },
+      result: data.id
+    }, CREATE_OPERATION));
+    return data.id;
+  }
+}
+
 export function deleteItem(type, id, createPromise) {
   return (dispatch, getState) => {
     dispatch(createRequestAction(type, id, false, DELETE_OPERATION));
@@ -117,6 +124,18 @@ export function deleteItem(type, id, createPromise) {
       dispatch(createReceiveAction(type, id, false, result, DELETE_OPERATION));
       return result.result;
     });
+  }
+}
+
+export function deleteLocalItem(type, id) {
+  return (dispatch, getState) => {
+    dispatch(createReceiveAction(type, null, false, {
+      entities: {
+        [type]: [{ id }]
+      },
+      result: id
+    }, DELETE_OPERATION));
+    return id;
   }
 }
 
@@ -148,6 +167,7 @@ function fetch(type, id, createPromise, isCollection, options = {}) {
       return PENDING_REQUESTS.get(key)
     }
     if(!isEntityExpired(state, type, id, isCollection, expiresSeconds)){
+      //TODO: Resolve to the result
       return Promise.resolve();
     }
     dispatch(createRequestAction(type, id, isCollection, FETCH_OPERATION));

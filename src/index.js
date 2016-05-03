@@ -1,8 +1,7 @@
 import { hooks, environments, positions, register } from 'universal-redux/lib/hooks';
 
-import reducer, {
-  ENTITIES_REDUCER
-} from './reducer';
+import reducer from './reducer';
+import { ENTITIES_REDUCER } from './utils';
 
 export * from './reducer';
 export * from './utils';
