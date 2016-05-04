@@ -1,7 +1,8 @@
 import {
   COLLECTIONS_KEY,
   ITEMS_KEY,
-  isEntityExpired
+  isEntityExpired,
+  getEntityData
 } from './utils';
 
 const EXPIRE_SECONDS = 60;
@@ -167,8 +168,7 @@ function fetch(type, id, createPromise, isCollection, options = {}) {
       return PENDING_REQUESTS.get(key)
     }
     if(!isEntityExpired(state, type, id, isCollection, expiresSeconds)){
-      //TODO: Resolve to the result
-      return Promise.resolve();
+      return Promise.resolve(getEntityData(state, type, id, isCollection));
     }
     dispatch(createRequestAction(type, id, isCollection, FETCH_OPERATION));
     const promise = createPromise(dispatch, getState)
@@ -176,7 +176,7 @@ function fetch(type, id, createPromise, isCollection, options = {}) {
         (result) => {
           dispatch(createReceiveAction(type, id, isCollection, result, FETCH_OPERATION));
           PENDING_REQUESTS.delete(key);
-          return result.result;
+          return getEntityData(getState(), type, id, isCollection);
         },
         (error) => {
           PENDING_REQUESTS.delete(key);
