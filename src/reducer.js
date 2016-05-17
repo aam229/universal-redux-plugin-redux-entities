@@ -167,7 +167,7 @@ function fetch(type, id, createPromise, isCollection, options = {}) {
     if(PENDING_REQUESTS.has(key)){
       return PENDING_REQUESTS.get(key)
     }
-    if(!isEntityExpired(state, type, id, isCollection, expiresSeconds)){
+    if(!options.force && !isEntityExpired(state, type, id, isCollection, expiresSeconds)){
       return Promise.resolve(getEntityData(state, type, id, isCollection));
     }
     dispatch(createRequestAction(type, id, isCollection, FETCH_OPERATION));
