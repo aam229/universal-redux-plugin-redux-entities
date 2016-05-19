@@ -101,7 +101,7 @@ export function createItem(type, createPromise){
     dispatch(createRequestAction(type, null, false, CREATE_OPERATION));
     return createPromise(dispatch, getState).then((result) => {
       dispatch(createReceiveAction(type, null, false, result, CREATE_OPERATION));
-      return result.result;
+      return getEntityData(getState(), type, result.result, false);
     });
   }
 }
@@ -145,7 +145,7 @@ export function updateItem(type, id, createPromise){
     dispatch(createRequestAction(type, id, false, UPDATE_OPERATION));
     return createPromise(dispatch, getState).then((result) => {
       dispatch(createReceiveAction(type, id, false, result, UPDATE_OPERATION));
-      return result.result;
+      return getEntityData(getState(), type, id, false);
     });
   }
 }
