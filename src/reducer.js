@@ -123,7 +123,7 @@ export function deleteItem(type, id, createPromise) {
     dispatch(createRequestAction(type, id, false, DELETE_OPERATION));
     return createPromise(dispatch, getState).then((result) => {
       dispatch(createReceiveAction(type, id, false, result, DELETE_OPERATION));
-      return result.result;
+      return getEntityData(getState(), type, id, false);
     });
   }
 }
