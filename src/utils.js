@@ -26,6 +26,10 @@ export function getCollectionData(state, type, id){
   return getEntityData(state, type, id, true);
 }
 
+export function getEntitiesData(state, type, ids){
+  return ids.map((i) => getEntityData(state, type, i));
+}
+
 export function getEntityData(state, type, id, isCollection = false) {
   const entity = getEntity(state, type, id, isCollection);
   if(!entity){

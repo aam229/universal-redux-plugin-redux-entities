@@ -2,6 +2,7 @@ import {
   COLLECTIONS_KEY,
   ITEMS_KEY,
   isEntityExpired,
+  getEntitiesData,
   getEntityData
 } from './utils';
 
@@ -11,12 +12,6 @@ const FETCH_OPERATION = 'fetch';
 const UPDATE_OPERATION = 'update';
 const CREATE_OPERATION = 'create';
 const DELETE_OPERATION = 'delete';
-
-const OPERATION_FLAGS = {
-  [FETCH_OPERATION]: 'isFetching',
-  [UPDATE_OPERATION]: 'isUpdating',
-  [DELETE_OPERATION]: 'isDeleting'
-};
 
 const PENDING_REQUESTS = new Map();
 
@@ -52,24 +47,17 @@ function entityItemsReducer(entityItemsState = {}, action, entityType) {
   return {
     ...entityItemsState,
     ...itemsData.reduce((entities, entityData) => {
-      entities[entityData.id] = entityItemReducer(entityItemsState[entityData.id], action, entityType, entityData);
+      entities[entityData.id] = entityItemReducer(entityItemsState[entityData.id], action, entityData);
       return entities;
     }, {})
   }
 }
 
-function entityItemReducer(entityItemState = {}, action, entityType, entityData) {
+function entityItemReducer(entityItemState = {}, action, entityData) {
   const metadata = {
-    isUpdating: false,
-    isFetching: false,
-    isDeleting: false,
-    isDeleted: false,
     ...entityItemState.metadata,
     lastUpdate: new Date().getTime()
   };
-  if (!action.payload.isCollection && action.payload.type === entityType && action.payload.id === entityData.id) {
-    metadata[OPERATION_FLAGS[action.payload.operation]] = false;
-  }
   if (action.payload.operation === DELETE_OPERATION) {
     metadata.isDeleted = true;
   }
@@ -80,28 +68,38 @@ function entityItemReducer(entityItemState = {}, action, entityType, entityData)
 }
 
 function entityCollectionsReducer(entityCollectionsState = {}, action, entityType) {
-  if (!action.payload.isCollection || action.payload.type !== entityType){
+  if (!action.payload.collectionID || action.payload.collectionType !== entityType){
     return entityCollectionsState;
   }
   const collectionData = action.result.result;
   return {
     ...entityCollectionsState,
-    [ action.payload.id ]: {
+    [ action.payload.collectionID ]: {
       data: collectionData,
       metadata: {
-        isFetching: false,
         lastUpdate: new Date().getTime()
       }
     }
   }
 }
 
+export function createCollection(type, id, createPromise){
+  return create(type, id, true, createPromise);
+}
+
 export function createItem(type, createPromise){
+  return create(type, null, false, createPromise);
+}
+
+function create(type, id, isCollection, createPromise){
   return (dispatch, getState) => {
-    dispatch(createRequestAction(type, null, false, CREATE_OPERATION));
+    // dispatch(createRequestAction(type, null, false, CREATE_OPERATION));
     return createPromise(dispatch, getState).then((result) => {
-      dispatch(createReceiveAction(type, null, false, result, CREATE_OPERATION));
-      return getEntityData(getState(), type, result.result, false);
+      dispatch(createReceiveAction(result, CREATE_OPERATION, isCollection ? type : null, isCollection ? id : null));
+
+      return result.result instanceof Array ?
+        getEntitiesData(getState(), type, result.result) :
+        getEntityData(getState(), type, result.result);
     });
   }
 }
@@ -118,73 +116,99 @@ export function createLocalItem(type, data) {
   }
 }
 
-export function deleteItem(type, id, createPromise) {
+export function deleteCollection(type, id, createPromise){
+  return remove(type, id, true, createPromise);
+}
+
+export function deleteItem(type, createPromise) {
+  return remove(type, null, false, createPromise);
+}
+
+function remove(type, id, isCollection, createPromise){
   return (dispatch, getState) => {
-    dispatch(createRequestAction(type, id, false, DELETE_OPERATION));
+    // dispatch(createRequestAction(type, id, false, DELETE_OPERATION));
     return createPromise(dispatch, getState).then((result) => {
-      dispatch(createReceiveAction(type, id, false, result, DELETE_OPERATION));
-      return getEntityData(getState(), type, id, false);
+      dispatch(createReceiveAction(result, DELETE_OPERATION, isCollection ? type : null, isCollection ? id : null));
+
+      return result.result instanceof Array ?
+        getEntitiesData(getState(), type, result.result) :
+        getEntityData(getState(), type, result.result);
     });
   }
 }
 
 export function deleteLocalItem(type, id) {
   return (dispatch, getState) => {
-    dispatch(createReceiveAction(type, null, false, {
+    const result = {
       entities: {
         [type]: [{ id }]
       },
       result: id
-    }, DELETE_OPERATION));
+    };
+    dispatch(createReceiveAction(type, DELETE_OPERATION));
     return id;
   }
 }
 
-export function updateItem(type, id, createPromise){
+export function updateCollection(type, id, createPromise) {
+  return update(type, id, true, createPromise);
+}
+
+export function updateItem(type, createPromise){
+  return update(type, null, false, createPromise);
+}
+
+function update(type, id, isCollection, createPromise){
   return (dispatch, getState) => {
-    dispatch(createRequestAction(type, id, false, UPDATE_OPERATION));
+    // dispatch(createRequestAction(type, id, false, UPDATE_OPERATION));
     return createPromise(dispatch, getState).then((result) => {
-      dispatch(createReceiveAction(type, id, false, result, UPDATE_OPERATION));
-      return getEntityData(getState(), type, id, false);
+      dispatch(createReceiveAction(result, UPDATE_OPERATION, isCollection ? type : null, isCollection ? id : null));
+
+      return result.result instanceof Array ?
+        getEntitiesData(getState(), type, result.result) :
+        getEntityData(getState(), type, result.result);
     });
   }
 }
 
 export function fetchCollection(type, id, createPromise, options = {}){
-  return fetch(type, id, createPromise, true, options);
+  return fetch(type, id, true, createPromise, options);
 }
 
 export function fetchItem(type, id, createPromise, options = {}){
-  return fetch(type, id, createPromise, false, options);
+  return fetch(type, id, false, createPromise, options);
 }
 
-function fetch(type, id, createPromise, isCollection, options = {}) {
-  const expiresSeconds = options.expiresSeconds || EXPIRE_SECONDS;
+function fetch(type, id, isCollection, createPromise, {requestKey, expiresSeconds, force}) {
+  const expiresSeconds = expiresSeconds || EXPIRE_SECONDS;
+  requestKey = id ? getEntityKey(type, id, isCollection) : requestKey;
+
   return (dispatch, getState) => {
     const state = getState();
-    const key = getEntityKey(type, id, isCollection);
-
-    if(PENDING_REQUESTS.has(key)){
-      return PENDING_REQUESTS.get(key)
+    if(requestKey && PENDING_REQUESTS.has(requestKey)){
+      return PENDING_REQUESTS.get(requestKey)
     }
-    if(!options.force && !isEntityExpired(state, type, id, isCollection, expiresSeconds)){
+    if(id && !force && !isEntityExpired(state, type, id, isCollection, expiresSeconds)){
       return Promise.resolve(getEntityData(state, type, id, isCollection));
     }
-    dispatch(createRequestAction(type, id, isCollection, FETCH_OPERATION));
+    // dispatch(createRequestAction(type, id, isCollection, FETCH_OPERATION));
     const promise = createPromise(dispatch, getState)
       .then(
         (result) => {
-          dispatch(createReceiveAction(type, id, isCollection, result, FETCH_OPERATION));
-          PENDING_REQUESTS.delete(key);
-          return getEntityData(getState(), type, id, isCollection);
+          if(requestKey) PENDING_REQUESTS.delete(requestKey);
+
+          dispatch(createReceiveAction(result, FETCH_OPERATION, isCollection ? type : null, isCollection ? id : null));
+          return result.result instanceof Array ?
+            getEntitiesData(getState(), type, result.result) :
+            getEntityData(getState(), type, result.result);
         },
         (error) => {
-          PENDING_REQUESTS.delete(key);
+          if(requestKey) PENDING_REQUESTS.delete(requestKey);
           throw error;
         }
       );
 
-    PENDING_REQUESTS.set(key, promise);
+    if(requestKey) PENDING_REQUESTS.set(requestKey, promise);
     return promise;
   }
 }
@@ -196,10 +220,10 @@ function createRequestAction(type, id, isCollection, operation){
   }
 }
 
-function createReceiveAction(type, id, isCollection, result, operation){
+function createReceiveAction(result, operation, collectionType = null, collectionID = null){
   return {
     type: RECEIVE_ENTITY,
-    payload: { type, id, isCollection, operation },
+    payload: { operation, collectionType, collectionID},
     result
   }
 }
