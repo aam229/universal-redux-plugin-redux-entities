@@ -47,7 +47,11 @@ function entityItemsReducer(entityItemsState = {}, action, entityType) {
   return {
     ...entityItemsState,
     ...itemsData.reduce((entities, entityData) => {
-      entities[entityData.id] = entityItemReducer(entityItemsState[entityData.id], action, entityData);
+      if(entityData){
+        entities[entityData.id] = entityItemReducer(entityItemsState[entityData.id], action, entityData);
+      } else {
+        throw new Error(`Received an empty ${entityType}`);
+      }
       return entities;
     }, {})
   }
@@ -180,7 +184,7 @@ export function fetchItem(type, id, createPromise, options = {}){
 }
 
 function fetch(type, id, isCollection, createPromise, {requestKey, expiresSeconds, force}) {
-  const expiresSeconds = expiresSeconds || EXPIRE_SECONDS;
+  expiresSeconds = expiresSeconds || EXPIRE_SECONDS;
   requestKey = id ? getEntityKey(type, id, isCollection) : requestKey;
 
   return (dispatch, getState) => {
