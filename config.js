@@ -1,10 +1,10 @@
-var environments = require('universal-redux/lib/hooks').environments;
+var environments = require('universal-redux').environments;
 
 module.exports = {
   environments: [
     environments.CLIENT,
     environments.SERVER,
     environments.DEVELOPMENT,
-    environments.PRODUCTION 
+    environments.PRODUCTION
   ]
 };
